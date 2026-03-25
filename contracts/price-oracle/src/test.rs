@@ -129,3 +129,30 @@ fn test_set_price_uses_current_ledger_timestamp() {
     assert_eq!(stored.price, 950_i128);
     assert_eq!(stored.timestamp, 1_700_000_123);
 }
+
+#[test]
+fn test_is_timestamp_stale_returns_true_after_24_hours() {
+    let (env, client) = setup();
+    env.ledger().set_timestamp(1_700_086_401);
+    env.ledger().set_sequence_number(1);
+
+    assert!(client.is_timestamp_stale(&1_700_000_000));
+}
+
+#[test]
+fn test_is_timestamp_stale_returns_false_at_24_hour_boundary() {
+    let (env, client) = setup();
+    env.ledger().set_timestamp(1_700_086_400);
+    env.ledger().set_sequence_number(1);
+
+    assert!(!client.is_timestamp_stale(&1_700_000_000));
+}
+
+#[test]
+fn test_is_timestamp_stale_returns_false_for_future_timestamp() {
+    let (env, client) = setup();
+    env.ledger().set_timestamp(1_700_000_000);
+    env.ledger().set_sequence_number(1);
+
+    assert!(!client.is_timestamp_stale(&1_700_000_100));
+}
