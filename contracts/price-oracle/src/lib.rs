@@ -81,3 +81,4 @@ impl PriceOracle {
 }
 
 mod test;
+mod admin;
