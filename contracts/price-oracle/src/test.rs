@@ -3,6 +3,14 @@
 use super::*;
 use soroban_sdk::{symbol_short, testutils::Address as _, Address, Env};
 
+fn setup() -> (Env, PriceOracleClient<'static>) {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PriceOracle, ());
+    let client = PriceOracleClient::new(&env, &contract_id);
+    (env, client)
+}
+
 #[test]
 fn test_get_price_existing_asset() {
     let env = Env::default();
@@ -235,4 +243,42 @@ fn test_update_price_multiple_updates() {
     env.as_contract(&contract_id, || {
         assert!(crate::auth::_is_provider(&env, &provider));
     });
+#[test]
+fn test_get_price_safe_nonexistent_returns_none() {
+    let (_, client) = setup();
+    // Must return None, not panic or error
+    assert_eq!(client.get_price_safe(&symbol_short!("NGN")), None);
+}
+
+#[test]
+fn test_get_all_assets_returns_tracked_symbols() {
+    let (env, client) = setup();
+    let source = Address::generate(&env);
+
+    let ngn = symbol_short!("NGN");
+    let kes = symbol_short!("KES");
+
+    client.set_price(
+        &ngn,
+        &PriceData {
+            asset: ngn.clone(),
+            price: 1500,
+            timestamp: 1000,
+            source: source.clone(),
+        },
+    );
+    client.set_price(
+        &kes,
+        &PriceData {
+            asset: kes.clone(),
+            price: 800,
+            timestamp: 1000,
+            source: source.clone(),
+        },
+    );
+
+    let assets = client.get_all_assets();
+    assert_eq!(assets.len(), 2);
+    assert!(assets.contains(&ngn));
+    assert!(assets.contains(&kes));
 }
