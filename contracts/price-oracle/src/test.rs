@@ -33,9 +33,9 @@ fn test_get_price_existing_asset() {
     assert!(result.is_ok());
 
     let retrieved_price = result.unwrap().unwrap();
-    assert_eq!(retrieved_price.asset, asset);
     assert_eq!(retrieved_price.price, 1_000_000_i128);
     assert_eq!(retrieved_price.timestamp, 1_234_567_890);
+    assert_eq!(retrieved_price.provider, contract_id);
 }
 
 #[test]

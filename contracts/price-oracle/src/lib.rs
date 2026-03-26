@@ -1,8 +1,9 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contracterror, contractevent, contractimpl, contracttype, symbol_short, Address, Env,
-    Symbol,
+    contract, contracterror, contractevent, contractimpl, symbol_short, Address, Env, Symbol,
 };
+
+use crate::types::PriceData;
 
 /// Error types for the price oracle contract
 #[contracterror]
@@ -15,18 +16,6 @@ pub enum Error {
     Unauthorized = 2,
     /// Asset symbol is not in the approved list (NGN, KES, GHS)
     InvalidAssetSymbol = 3,
-}
-
-/// Price data structure containing price information for an asset
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PriceData {
-    /// The asset symbol (approved: NGN, KES, GHS)
-    pub asset: Symbol,
-    /// The price value (stored as scaled integer, e.g., 1000000 = 1.00 USD)
-    pub price: i128,
-    /// Timestamp when the price was last updated
-    pub timestamp: u64,
 }
 
 /// Event emitted when a price is updated
@@ -125,9 +114,9 @@ impl PriceOracle {
             .unwrap_or_else(|| soroban_sdk::Map::new(&env));
 
         let price_data = PriceData {
-            asset: asset.clone(),
             price: val,
             timestamp: env.ledger().timestamp(),
+            provider: env.current_contract_address(),
         };
 
         prices.set(asset, price_data);
@@ -148,7 +137,12 @@ impl PriceOracle {
     ///
     /// # Panics
     /// If `source` is not a whitelisted provider.
-    pub fn update_price(env: Env, source: Address, asset: Symbol, price: i128) -> Result<(), Error> {
+    pub fn update_price(
+        env: Env,
+        source: Address,
+        asset: Symbol,
+        price: i128,
+    ) -> Result<(), Error> {
         if !asset_symbol::is_approved_asset_symbol(asset.clone()) {
             return Err(Error::InvalidAssetSymbol);
         }
@@ -168,9 +162,9 @@ impl PriceOracle {
         let timestamp = env.ledger().timestamp();
 
         let price_data = PriceData {
-            asset: asset.clone(),
             price,
             timestamp,
+            provider: source.clone(),
         };
 
         prices.set(asset.clone(), price_data);
@@ -192,3 +186,4 @@ mod asset_symbol;
 mod auth;
 mod median;
 mod test;
+mod types;
