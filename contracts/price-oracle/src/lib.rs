@@ -19,6 +19,8 @@ pub enum Error {
     Unauthorized = 2,
     /// Asset symbol is not in the approved list (NGN, KES, GHS)
     InvalidAssetSymbol = 3,
+    /// Price must be greater than zero.
+    InvalidPrice = 4,
 }
 
 /// Event emitted when a price is updated
@@ -63,6 +65,10 @@ pub fn calculate_percentage_change_bps(old_price: i128, new_price: i128) -> Opti
 /// compare the result directly against a threshold without worrying about direction.
 pub fn calculate_percentage_difference_bps(old_price: i128, new_price: i128) -> Option<i128> {
     calculate_percentage_change_bps(old_price, new_price).map(i128::abs)
+}
+
+fn is_valid(price: i128) -> bool {
+    price > 0
 }
 
 #[contractimpl]
@@ -134,6 +140,10 @@ impl PriceOracle {
 
     /// Set the price data for a specific asset.
     pub fn set_price(env: Env, asset: Symbol, val: i128) {
+        if !is_valid(val) {
+            panic!("Invalid price: must be greater than zero");
+        }
+
         let storage = env.storage().persistent();
         let mut prices: soroban_sdk::Map<Symbol, PriceData> = storage
             .get(&PRICE_DATA_KEY)
@@ -174,6 +184,10 @@ impl PriceOracle {
 
         if !asset_symbol::is_approved_asset_symbol(asset.clone()) {
             return Err(Error::InvalidAssetSymbol);
+        }
+
+        if !is_valid(price) {
+            return Err(Error::InvalidPrice);
         }
 
         if !crate::auth::_is_provider(&env, &source) {
