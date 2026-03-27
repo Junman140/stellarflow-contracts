@@ -1,7 +1,9 @@
 #![cfg(test)]
 
 use super::*;
-use soroban_sdk::{symbol_short, testutils::Address as _, testutils::Ledger, Address, Env};
+use soroban_sdk::{
+    symbol_short, testutils::Address as _, testutils::Ledger, Address, Env, IntoVal, Symbol,
+};
 
 fn setup() -> (Env, PriceOracleClient<'static>) {
     let env = Env::default();
@@ -272,6 +274,7 @@ fn test_update_price_emits_event() {
     let admin = Address::generate(&env);
     let provider = Address::generate(&env);
     let asset = symbol_short!("NGN");
+    let old_price: i128 = 1_250_000;
     let price: i128 = 1_500_000;
 
     env.as_contract(&contract_id, || {
@@ -279,11 +282,27 @@ fn test_update_price_emits_event() {
         crate::auth::_add_provider(&env, &provider);
     });
 
+    client.set_price(&asset, &old_price);
     env.ledger().set_timestamp(1_700_000_000);
     client.update_price(&provider, &asset, &price);
 
     let events = env.events().all();
-    assert!(!events.is_empty());
+    let price_update_event = events.last().unwrap();
+
+    assert_eq!(
+        price_update_event,
+        (
+            contract_id.clone(),
+            (Symbol::new(&env, "PriceUpdate"), asset.clone()).into_val(&env),
+            PriceUpdated {
+                asset,
+                new_price: price,
+                old_price,
+                provider_address: provider,
+            }
+            .into_val(&env),
+        )
+    );
 }
 
 #[test]

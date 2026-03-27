@@ -1,7 +1,8 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractevent, contractimpl, symbol_short, Address, Env, Symbol,
+    contract, contracterror, contractevent, contractimpl, contracttype, symbol_short, Address,
+    Env, Symbol,
 };
 
 use crate::types::PriceData;
@@ -22,13 +23,13 @@ pub enum Error {
 }
 
 /// Event emitted when a price is updated
-#[contractevent]
+#[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PriceUpdated {
-    pub source: Address,
     pub asset: Symbol,
-    pub price: i128,
-    pub timestamp: u64,
+    pub new_price: i128,
+    pub old_price: i128,
+    pub provider_address: Address,
 }
 
 /// Event emitted when the admin address is changed
@@ -162,6 +163,11 @@ impl PriceOracle {
             .get(&PRICE_DATA_KEY)
             .unwrap_or_else(|| soroban_sdk::Map::new(&env));
 
+        let old_price = prices
+            .get(asset.clone())
+            .map(|existing_price| existing_price.price)
+            .unwrap_or(0);
+
         let timestamp = env.ledger().timestamp();
         let price_data = PriceData {
             price,
@@ -172,13 +178,15 @@ impl PriceOracle {
         prices.set(asset.clone(), price_data);
         storage.set(&PRICE_DATA_KEY, &prices);
 
-        PriceUpdated {
-            source,
-            asset,
-            price,
-            timestamp,
-        }
-        .publish(&env);
+        env.events().publish(
+            (Symbol::new(&env, "PriceUpdate"), asset.clone()),
+            PriceUpdated {
+                asset,
+                new_price: price,
+                old_price,
+                provider_address: source,
+            },
+        );
 
         Ok(())
     }
